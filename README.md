@@ -1,0 +1,1 @@
+Python scripts for generating Kubernetes YAML jobs for pretraining, finetuning, and summarizing evaluation results for J-JEPA experiments (PTCL pretraining, finetuning, flatten, and CLS variants) on the Nautilus GPU cluster.
