@@ -1,0 +1,167 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: alan-ptcl-cls-summary-1k-10k-100k
+  namespace: cms-ml
+  labels: { jobgroup: jjepa-job }
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      tolerations:
+        - key: "nautilus.io/hardware"
+          operator: "Equal"
+          value: "gpu"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values:
+                  - ry-gpu-15.sdsc.optiputer.net
+                  - gpn-fiona-mizzou-7.rnet.missouri.edu
+                  - prp-gpu-3.t2.ucsd.edu
+      initContainers:
+      - name: init-clone-repo
+        image: alpine/git
+        command: ["/bin/sh","-c"]
+        args:
+        - |
+          git clone --single-branch --branch ptcl_alan https://github.com/alanx1234/J-JEPA.git /opt/repo/J-JEPA &&
+          chown -R 1000:1000 /opt/repo
+        resources:
+          requests: { cpu: "1", memory: 1Gi, ephemeral-storage: "1Gi" }
+          limits:   { cpu: "1", memory: 1Gi,  ephemeral-storage: "4Gi" }
+        volumeMounts:
+        - { name: git-repo, mountPath: /opt/repo }
+      containers:
+      - name: runner
+        image: gitlab-registry.nrp-nautilus.io/jmduarte/hbb_interaction_network:latest
+        env:
+        - { name: PYTHONPATH, value: "/opt/repo/J-JEPA" }
+        - { name: TORCH_CUDA_ALLOC_CONF, value: "max_split_size_mb:128" }
+        - name: POD_NAME
+          valueFrom: { fieldRef: { fieldPath: metadata.name } }
+        command: ["/bin/bash","-lc"]
+        args:
+        - |
+          set -euo pipefail
+          cd /opt/repo/J-JEPA/
+          pip install -e .
+
+          python - << 'EOF'
+          import os, json
+
+          ROOT = "/j-jepa-vol/J-JEPA-Alan/model_performances/cls"
+          ALLOWED_SIZES = {"1k", "10k", "100k"}
+
+          def size_key(s):
+              s = s.lower()
+              if s.endswith("k"):
+                  return int(s[:-1]) * 1_000
+              if s.endswith("m"):
+                  return int(s[:-1]) * 1_000_000
+              try:
+                  return int(s)
+              except ValueError:
+                  return 0
+
+          def parse_path_info(root, dirpath, filename):
+              ckpt_type = filename[len("test_summary_"):-len(".json")]  # e.g. "best_acc"
+              rel = os.path.relpath(dirpath, root)
+              rel_parts = rel.split(os.sep)
+              if len(rel_parts) < 2:
+                  return None
+              size = rel_parts[0]
+              if size not in ALLOWED_SIZES:
+                  return None
+              second = rel_parts[1]
+              if second == "baseline":
+                  mode = "baseline"
+                  pct = "-"
+              elif second == "finetune":
+                  mode = "finetune"
+                  pct = rel_parts[2] if len(rel_parts) >= 3 else "UNKNOWN"
+              else:
+                  return None
+              return size, mode, pct, ckpt_type
+
+          def collect_summaries(root):
+              rows = []
+              for dirpath, _, filenames in os.walk(root):
+                  for fname in filenames:
+                      if not fname.startswith("test_summary_") or not fname.endswith(".json"):
+                          continue
+                      info = parse_path_info(root, dirpath, fname)
+                      if info is None:
+                          continue
+                      size, mode, pct, ckpt_type = info
+                      full_path = os.path.join(dirpath, fname)
+                      with open(full_path, "r") as f:
+                          data = json.load(f)
+                      mean = data.get("mean", {})
+                      std = data.get("std", {})
+                      trials = data.get("trials", [])
+                      row = {
+                          "size": size,
+                          "mode": mode,
+                          "pct": pct,
+                          "checkpoint": ckpt_type,
+                          "n_trials": len(trials),
+                          "mean_loss": mean.get("loss", float("nan")),
+                          "std_loss": std.get("loss", float("nan")),
+                          "mean_acc": mean.get("acc", float("nan")),
+                          "std_acc": std.get("acc", float("nan")),
+                          "mean_auc": mean.get("auc", float("nan")),
+                          "std_auc": std.get("auc", float("nan")),
+                          "mean_imtafe": mean.get("imtafe", float("nan")),
+                          "std_imtafe": std.get("imtafe", float("nan")),
+                      }
+                      rows.append(row)
+              rows.sort(key=lambda r: (size_key(r["size"]), r["mode"], r["pct"], r["checkpoint"]))
+              return rows
+
+          def print_table(rows):
+              if not rows:
+                  print("No test_summary_*.json files found for 1k/10k/100k.")
+                  return
+              cols = [
+                  "size", "mode", "pct", "checkpoint",
+                  "n_trials",
+                  "mean_loss", "std_loss",
+                  "mean_acc", "std_acc",
+                  "mean_auc", "std_auc",
+                  "mean_imtafe", "std_imtafe",
+              ]
+              col_widths = {c: max(len(c), max(len(str(r[c])) for r in rows)) for c in cols}
+              header = " | ".join(f"{c:{col_widths[c]}}" for c in cols)
+              sep = "-+-".join("-" * col_widths[c] for c in cols)
+              print(header)
+              print(sep)
+              for r in rows:
+                  line = " | ".join(f"{str(r[c]):{col_widths[c]}}" for c in cols)
+                  print(line)
+
+          rows = collect_summaries(ROOT)
+          print_table(rows)
+          EOF
+
+          echo "Done printing summary table. Sleeping for 3600 seconds..."
+          sleep 3600
+        resources:
+          requests: { cpu: "1", memory: 8Gi, ephemeral-storage: "1Gi" }
+          limits:   { cpu: "1", memory: 8Gi, ephemeral-storage: "8Gi" }
+        volumeMounts:
+        - { name: git-repo,   mountPath: /opt/repo }
+        - { name: j-jepa-vol, mountPath: /j-jepa-vol }
+        - { name: config,     mountPath: /config, readOnly: true }
+      volumes:
+      - { name: git-repo, emptyDir: {} }
+      - { name: j-jepa-vol, persistentVolumeClaim: { claimName: j-jepa-vol } }
+      - { name: config,   configMap: { name: ptcl-options-amp-1p } }
