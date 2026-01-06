@@ -27,19 +27,7 @@ spec:
                   - ry-gpu-15.sdsc.optiputer.net
                   - gpn-fiona-mizzou-7.rnet.missouri.edu
                   - prp-gpu-3.t2.ucsd.edu
-      initContainers:
-      - name: init-clone-repo
-        image: alpine/git
-        command: ["/bin/sh","-c"]
-        args:
-        - |
-          git clone --single-branch --branch ptcl_alan https://github.com/alanx1234/J-JEPA.git /opt/repo/J-JEPA &&
-          chown -R 1000:1000 /opt/repo
-        resources:
-          requests: { cpu: "1", memory: 1Gi, ephemeral-storage: "1Gi" }
-          limits:   { cpu: "1", memory: 1Gi,  ephemeral-storage: "4Gi" }
-        volumeMounts:
-        - { name: git-repo, mountPath: /opt/repo }
+
       containers:
       - name: runner
         image: gitlab-registry.nrp-nautilus.io/jmduarte/hbb_interaction_network:latest
@@ -52,6 +40,16 @@ spec:
         args:
         - |
           set -euo pipefail
+
+          # --- clone repo here (avoid alpine/git initContainer / Docker Hub) ---
+          if [ ! -d /opt/repo/J-JEPA/.git ]; then
+            echo "[clone] cloning J-JEPA into /opt/repo/J-JEPA"
+            git --version || true
+            git clone --single-branch --branch ptcl_alan https://github.com/alanx1234/J-JEPA.git /opt/repo/J-JEPA
+          else
+            echo "[clone] repo already present at /opt/repo/J-JEPA"
+          fi
+
           cd /opt/repo/J-JEPA/
           pip install -e .
 
@@ -161,7 +159,8 @@ spec:
         - { name: git-repo,   mountPath: /opt/repo }
         - { name: j-jepa-vol, mountPath: /j-jepa-vol }
         - { name: config,     mountPath: /config, readOnly: true }
+
       volumes:
       - { name: git-repo, emptyDir: {} }
       - { name: j-jepa-vol, persistentVolumeClaim: { claimName: j-jepa-vol } }
-      - { name: config,   configMap: { name: ptcl-options-amp-1p } }
+      - { name: config, configMap: { name: ptcl-options-amp-1p } }
