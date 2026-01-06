@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: alan-ptcl-flatten-summary-1k-10k-100k
+  name: alan-ptcl-flatten-summary-1k-10k-100k-1m
   namespace: cms-ml
   labels: { jobgroup: jjepa-job }
 spec:
@@ -59,7 +59,7 @@ spec:
           import os, json
 
           ROOT = "/j-jepa-vol/J-JEPA-Alan/model_performances/flatten"
-          ALLOWED_SIZES = {"1k", "10k", "100k"}
+          ALLOWED_SIZES = {"1k", "10k", "100k", "1m"}
 
           def size_key(s):
               s = s.lower()
