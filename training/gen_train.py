@@ -25,7 +25,7 @@ def make_job_yaml(
     else:
         data_path = f"/j-jepa-vol/J-JEPA/data/JetClass/ptcl/{pct_str}/train"
 
-    output_dir = f"/j-jepa-vol/J-JEPA-Alan/models/JetClass/ptcl/{pct_str}"
+    output_dir = f"/j-jepa-vol/J-JEPA-Alan/models/JetClass/ptcl_filtered/{pct_str}"
 
     yaml = f"""\
 apiVersion: batch/v1
@@ -95,7 +95,13 @@ spec:
                 --num_jets {num_jets} \\
                 --data_path {data_path} \\
                 --output_dir {output_dir} \\
-                --batch_size 256
+                --batch_size 256 \\
+                --probe \\
+                --probe_every 1 \\
+                --probe_steps 1000 \\
+                --probe_train_jets 50000 \\
+                --probe_val_jets 50000 \\
+                --probe_lr 1e-2
         resources:
           limits:
             cpu: '{cpus}'

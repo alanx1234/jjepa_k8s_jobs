@@ -37,7 +37,7 @@ def emit_job_yaml(size_key: str, num_samples: int, pct: Optional[str]) -> str:
         pct_path = f"{pct}%"       # for filesystem paths
         job_name = f"alan-ptcl-{size_key}-jets-finetune-flatten-{pct_name}"
         out_subdir = f"finetune/{pct_path}"
-        ckpt_dir = "/j-jepa-vol/J-JEPA-Alan/models/JetClass/ptcl"
+        ckpt_dir = "/j-jepa-vol/J-JEPA-Alan/models/JetClass/ptcl_filtered"
         ckpt_sub = "100%" if pct == "100" else pct_path
         ckpt_path = f"{ckpt_dir}/{ckpt_sub}/best_model.pth"
         load_line = f"            --load-jjepa-path {ckpt_path} \\\n"
@@ -45,7 +45,7 @@ def emit_job_yaml(size_key: str, num_samples: int, pct: Optional[str]) -> str:
         from_checkpoint_line = "            --from-checkpoint 0\n"
         label_line = ""
 
-    out_dir = f"/j-jepa-vol/J-JEPA-Alan/model_performances/flatten/{size_key}/{out_subdir}"
+    out_dir = f"/j-jepa-vol/J-JEPA-Alan/model_performances_run2/flatten/{size_key}/{out_subdir}"
 
     yaml = f"""apiVersion: batch/v1
 kind: Job

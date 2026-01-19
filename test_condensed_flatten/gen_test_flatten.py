@@ -7,7 +7,7 @@ TEST_DIR = "/j-jepa-vol/J-JEPA/data/top/test/"
 CONFIG_CM = "ptcl-options-amp-1p"
 
 # Parent of the size_key dirs used in training
-MODEL_BASE = "/j-jepa-vol/J-JEPA-Alan/model_performances/flatten"
+MODEL_BASE = "/j-jepa-vol/J-JEPA-Alan/model_performances_run2/flatten"
 
 SIZES = ["1k", "10k", "100k", "1m"]
 

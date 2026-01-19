@@ -56,7 +56,7 @@ spec:
           python - << 'EOF'
           import os, json
 
-          ROOT = "/j-jepa-vol/J-JEPA-Alan/model_performances/flatten"
+          ROOT = "/j-jepa-vol/J-JEPA-Alan/model_performances_run2/flatten"
           ALLOWED_SIZES = {"1k", "10k", "100k", "1m"}
 
           def size_key(s):
